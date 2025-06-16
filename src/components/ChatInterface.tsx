@@ -5,12 +5,12 @@ import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'; // Removed AvatarImage as it's not used
 import { Send, Bot, User, Info, Loader2 } from 'lucide-react';
 import { interactiveChatbot, type InteractiveChatbotInput, type InteractiveChatbotOutput } from '@/ai/flows/interactive-chatbot';
 import type { ChatMessage } from '@/lib/types';
 import { Card, CardContent } from './ui/card';
-import { marked } from 'marked'; // For rendering markdown from bot responses
+import { marked } from 'marked';
 
 interface ChatInterfaceProps {
   meetingContent: string;
@@ -102,8 +102,8 @@ export default function ChatInterface({ meetingContent, initialMessages = [] }: 
                     : 'rounded-r-xl rounded-tl-xl bg-muted'
                 }`}
               >
-                <CardContent className="p-0 text-sm break-words">
-                  <div dangerouslySetInnerHTML={{ __html: marked.parse(message.text) }} />
+                <CardContent className="p-0 text-sm break-words prose dark:prose-invert max-w-none">
+                  <div dangerouslySetInnerHTML={{ __html: marked.parse(message.text) as string }} />
                   {message.citations && (
                     <div className="mt-2 pt-2 border-t border-muted-foreground/20">
                       <p className="text-xs text-muted-foreground/80 flex items-center">
