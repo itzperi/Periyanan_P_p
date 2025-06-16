@@ -1,3 +1,4 @@
+
 "use client";
 
 import type React from 'react';
@@ -41,7 +42,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <SidebarMenu>
             {navItems.map((item) => (
               <SidebarMenuItem key={item.label}>
-                <Link href={item.href} legacyBehavior passHref>
+                <Link href={item.href} passHref>
                   <SidebarMenuButton
                     asChild
                     isActive={pathname === item.href}

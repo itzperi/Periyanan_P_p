@@ -1,10 +1,11 @@
+
 import MeetingCard from '@/components/MeetingCard';
 import { mockMeetings } from '@/lib/mockData';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { PlusCircle } from 'lucide-react';
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
   return (
     <div className="space-y-8">
       <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
