@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, Suspense, useRef } from 'react';
 import { useSearchParams, useParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Play, Pause, StopCircle, Download, UploadCloud, Mic, ScreenShare, FileText, MessageSquare, ListChecks, Brain } from 'lucide-react';
+import { Loader2, Play, Pause, StopCircle, Download, UploadCloud, Mic, ScreenShare, FileText, MessageSquare, ListChecks, Brain, Radio } from 'lucide-react';
 import ChatInterface from '@/components/ChatInterface';
 import { summarizeMeeting, type SummarizeMeetingInput, type SummarizeMeetingOutput } from '@/ai/flows/summarize-meeting';
 import { extractActionItems, type ExtractActionItemsInput, type ExtractActionItemsOutput } from '@/ai/flows/extract-action-items';
@@ -17,10 +17,10 @@ import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { toast } from '@/hooks/use-toast';
+import { marked } from 'marked';
 
 // Helper to create a dummy data URI for audio
 const createDummyAudioDataUri = () => {
-  // This is a tiny, silent WAV file as a base64 string
   const base64Audio = "UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAAABkYXRhAAAAAA==";
   return `data:audio/wav;base64,${base64Audio}`;
 }
@@ -46,25 +46,24 @@ function MeetingPageContent() {
   const [actionItems, setActionItems] = useState<ActionItem[]>([]);
   const [isExtractingActionItems, setIsExtractingActionItems] = useState(false);
 
+  const transcriptionIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
   useEffect(() => {
-    // Fetch meeting data (using mock for now)
     const foundMeeting = mockMeetings.find(m => m.id === meetingId);
     if (foundMeeting) {
-      // If title is in query params (from new-meeting page), use it
       const queryTitle = searchParams.get('title');
       setMeeting({ ...foundMeeting, title: queryTitle || foundMeeting.title });
       setTranscription(foundMeeting.transcript || "No transcript available yet. Start recording or upload a transcript.");
       setSummary(foundMeeting.fullSummary || '');
       setActionItems(foundMeeting.actionItems || []);
     } else {
-      // If not found in mock, create a new placeholder meeting object if title is available
       const queryTitle = searchParams.get('title');
       if (queryTitle) {
         setMeeting({
           id: meetingId,
           title: queryTitle,
           date: new Date().toISOString(),
-          status: 'live', // Assume it's a new live meeting
+          status: 'live',
           transcript: "No transcript available yet. Start recording or upload a transcript.",
         });
       } else {
@@ -74,47 +73,65 @@ function MeetingPageContent() {
     setIsLoading(false);
   }, [meetingId, searchParams]);
 
-  // Recording timer effect
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    let timerInterval: NodeJS.Timeout;
     if (isRecording) {
-      interval = setInterval(() => {
+      timerInterval = setInterval(() => {
         setRecordingTime(prevTime => prevTime + 1);
-        // Simulate live transcription every 5 seconds
-        if ((recordingTime + 1) % 5 === 0) {
-          handleLiveTranscription();
-        }
       }, 1000);
+      
+      // Start simulated live transcription
+      if (!transcriptionIntervalRef.current) {
+          transcriptionIntervalRef.current = setInterval(handleLiveTranscription, 5000); // Transcribe every 5 seconds
+      }
+
     } else {
-      clearInterval(interval!);
+      clearInterval(timerInterval!);
+      if (transcriptionIntervalRef.current) {
+        clearInterval(transcriptionIntervalRef.current);
+        transcriptionIntervalRef.current = null;
+      }
     }
-    return () => clearInterval(interval!);
-  }, [isRecording, recordingTime]);
+    return () => {
+      clearInterval(timerInterval!);
+      if (transcriptionIntervalRef.current) {
+        clearInterval(transcriptionIntervalRef.current);
+        transcriptionIntervalRef.current = null;
+      }
+    };
+  }, [isRecording]);
 
 
   const handleToggleRecording = () => {
-    setIsRecording(!isRecording);
-    if (!isRecording) setRecordingTime(0); // Reset time if starting
-    toast({ title: !isRecording ? "Recording Started" : "Recording Paused" });
+    setIsRecording(prev => !prev);
+    if (!isRecording) { // If was paused and now starting
+        setRecordingTime(0); // Reset time only if starting from a stopped state or initial start
+        toast({ title: "Recording Started", description: "Live transcription will update periodically." });
+    } else { // If was recording and now pausing
+        toast({ title: "Recording Paused" });
+    }
   };
 
   const handleStopRecording = () => {
     setIsRecording(false);
-    // setRecordingTime(0); // Or keep time for review
-    toast({ title: "Recording Stopped", description: `Duration: ${formatTime(recordingTime)}` });
+    toast({ title: "Recording Stopped", description: `Total duration: ${formatTime(recordingTime)}. You can now generate summary and action items.` });
+    // Optionally, trigger final transcription if needed
+    if (transcriptionIntervalRef.current) {
+        clearInterval(transcriptionIntervalRef.current);
+        transcriptionIntervalRef.current = null;
+    }
   };
 
   const handleLiveTranscription = async () => {
-    if(isTranscribing) return;
+    if(isTranscribing || !isRecording) return; // Only transcribe if actively recording
     setIsTranscribing(true);
     try {
       const input: LiveTranscriptionInput = { audioChunkDataUri: createDummyAudioDataUri() };
-      // Simulate a new piece of transcript
-      const simulatedResponse: LiveTranscriptionOutput = { transcription: `Segment ${Math.floor(Math.random() * 1000)}: This is a new transcribed segment. ` };
-      // const response = await liveTranscription(input); // Actual API call
+      const simulatedResponse: LiveTranscriptionOutput = { transcription: `Segment ${Math.floor(Date.now() / 1000) % 1000}: This is a new transcribed segment from the live feed. Lorem ipsum dolor sit amet. ` };
       
       setTranscription(prev => prev === "No transcript available yet. Start recording or upload a transcript." ? simulatedResponse.transcription : prev + simulatedResponse.transcription);
-      toast({ title: "Transcription Updated", description: "New segment added."});
+      // Minimal toast for live updates to avoid being too noisy
+      // toast({ title: "Transcript Updated", duration: 2000 });
     } catch (e) {
       console.error("Live transcription error:", e);
       toast({ title: "Transcription Error", description: "Could not update transcription.", variant: "destructive"});
@@ -171,15 +188,15 @@ function MeetingPageContent() {
   };
 
   if (isLoading) {
-    return <div className="flex justify-center items-center h-full"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
+    return <div className="flex justify-center items-center h-[calc(100vh-10rem)]"><Loader2 className="h-16 w-16 animate-spin text-primary" /></div>;
   }
 
   if (error) {
-    return <Alert variant="destructive"><AlertTitle>Error</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>;
+    return <Alert variant="destructive" className="glassmorphic"><AlertTitle>Error</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>;
   }
 
   if (!meeting) {
-    return <Alert><AlertTitle>Information</AlertTitle><AlertDescription>No meeting data found.</AlertDescription></Alert>;
+    return <Alert className="glassmorphic"><AlertTitle>Information</AlertTitle><AlertDescription>No meeting data found. Please start a new meeting.</AlertDescription></Alert>;
   }
 
   return (
@@ -203,40 +220,44 @@ function MeetingPageContent() {
         <TabsContent value="recording" className="mt-6">
           <Card className="glassmorphic">
             <CardHeader>
-              <CardTitle>Meeting Recording</CardTitle>
-              <CardDescription>Control your screen and audio recording here.</CardDescription>
+              <CardTitle>Meeting Recording Controls</CardTitle>
+              <CardDescription>Manage your screen and audio recording session.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="h-48 flex flex-col items-center justify-center bg-muted/30 rounded-lg border border-dashed text-muted-foreground">
+            <CardContent className="space-y-6">
+              <div className="h-60 flex flex-col items-center justify-center bg-muted/40 rounded-xl border-2 border-dashed border-primary/30 text-muted-foreground p-6 relative overflow-hidden">
                 {isRecording ? (
                   <>
-                    <ScreenShare size={48} className="text-primary animate-pulse mb-2" />
-                    <p>Screen and Audio Recording in Progress...</p>
-                    <p className="text-2xl font-mono mt-2">{formatTime(recordingTime)}</p>
+                    <Radio size={64} className="text-primary animate-pulse-glow mb-4" />
+                    <p className="text-lg font-semibold text-foreground">Recording Screen & Audio...</p>
+                    <p className="text-3xl font-mono mt-2 text-primary">{formatTime(recordingTime)}</p>
+                    <div className="absolute bottom-4 left-4 right-4">
+                        <Progress value={(recordingTime % 5) * 20 } className="w-full h-2 bg-primary/20 [&>div]:bg-primary" />
+                        {isTranscribing && <p className="text-xs text-primary/80 text-center mt-1">Transcribing segment...</p>}
+                    </div>
                   </>
                 ) : (
                   <>
-                    <ScreenShare size={48} className="mb-2" />
-                    <p>Recording Paused or Not Started</p>
-                    {recordingTime > 0 && <p className="text-lg font-mono mt-1">Last duration: {formatTime(recordingTime)}</p>}
+                    <ScreenShare size={64} className="mb-4 text-foreground/50" />
+                    <p className="text-lg font-semibold text-foreground">{recordingTime > 0 ? "Recording Paused" : "Ready to Record"}</p>
+                    {recordingTime > 0 && <p className="text-2xl font-mono mt-2 text-muted-foreground">{formatTime(recordingTime)}</p>}
+                    <p className="mt-2 text-sm text-muted-foreground">{recordingTime > 0 ? "Press Start to resume or Stop to finish." : "Press Start to begin."}</p>
                   </>
                 )}
               </div>
               <div className="flex items-center justify-center space-x-4">
-                <Button onClick={handleToggleRecording} variant={isRecording ? "outline" : "default"} size="lg">
+                <Button onClick={handleToggleRecording} variant={isRecording ? "outline" : "default"} size="lg" className="min-w-[180px]">
                   {isRecording ? <Pause className="mr-2 h-5 w-5" /> : <Play className="mr-2 h-5 w-5" />}
-                  {isRecording ? 'Pause' : 'Start Recording'}
+                  {isRecording ? 'Pause Recording' : 'Start Recording'}
                 </Button>
-                <Button onClick={handleStopRecording} variant="destructive" size="lg" disabled={!isRecording && recordingTime === 0}>
+                <Button onClick={handleStopRecording} variant="destructive" size="lg" disabled={!isRecording && recordingTime === 0} className="min-w-[180px]">
                   <StopCircle className="mr-2 h-5 w-5" />Stop Recording
                 </Button>
               </div>
-              {isRecording && <Progress value={(recordingTime % 5) * 20} className="w-full h-2 mt-2" />}
-               <Alert>
-                <Mic className="h-4 w-4" />
-                <AlertTitle>Independent Recording</AlertTitle>
-                <AlertDescription>
-                  This interface simulates recording controls. In a full application, this would integrate with WebRTC and native APIs for screen and audio capture.
+               <Alert variant="default" className="bg-muted/30 border-primary/20">
+                <Mic className="h-5 w-5 text-primary" />
+                <AlertTitle className="text-foreground/90">Simulation Notice</AlertTitle>
+                <AlertDescription className="text-muted-foreground">
+                  This interface simulates recording controls and live transcription updates. Full browser-based screen and audio capture would require WebRTC APIs.
                 </AlertDescription>
               </Alert>
             </CardContent>
@@ -247,20 +268,20 @@ function MeetingPageContent() {
           <Card className="glassmorphic">
             <CardHeader>
               <CardTitle>Live Transcription</CardTitle>
-              <CardDescription>View the real-time transcription of your meeting.</CardDescription>
+              <CardDescription>View the real-time transcription of your meeting. Updates automatically if recording.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <Textarea
                 value={transcription}
                 readOnly
-                placeholder="Transcription will appear here..."
-                className="h-64 text-sm bg-muted/30"
+                placeholder={isRecording ? "Live transcription will appear here as you record..." : "Start recording or upload a transcript to see content here."}
+                className="h-80 text-sm bg-muted/40 border-primary/30 focus:border-primary"
                 aria-label="Meeting transcript"
               />
-              <div className="flex space-x-2">
-                <Button onClick={handleLiveTranscription} disabled={!isRecording || isTranscribing}>
+              <div className="flex space-x-3">
+                <Button onClick={handleLiveTranscription} disabled={!isRecording || isTranscribing} variant="outline">
                   {isTranscribing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mic className="mr-2 h-4 w-4" />}
-                  Update Transcript
+                  Force Update
                 </Button>
                 <Button variant="outline">
                   <Download className="mr-2 h-4 w-4" /> Download Transcript
@@ -274,23 +295,24 @@ function MeetingPageContent() {
           <Card className="glassmorphic">
             <CardHeader>
               <CardTitle>AI Meeting Summary</CardTitle>
-              <CardDescription>Get an intelligent summary of the key points and decisions.</CardDescription>
+              <CardDescription>Get an intelligent summary of key points, decisions, and insights.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <Button onClick={handleGenerateSummary} disabled={isSummarizing || !transcription || transcription === "No transcript available yet. Start recording or upload a transcript."}>
+            <CardContent className="space-y-6">
+              <Button onClick={handleGenerateSummary} disabled={isSummarizing || !transcription || transcription === "No transcript available yet. Start recording or upload a transcript."} className="bg-primary hover:bg-primary/90 text-primary-foreground">
                 {isSummarizing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Brain className="mr-2 h-4 w-4" />}
                 Generate Summary
               </Button>
+              {isSummarizing && <p className="text-sm text-muted-foreground flex items-center"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Thinking... crafting your summary.</p>}
               {summary ? (
-                <div className="p-4 border rounded-md bg-muted/30 prose dark:prose-invert max-w-none">
-                  <div dangerouslySetInnerHTML={{ __html: summary.replace(/\n/g, '<br />') }} />
+                <div className="p-4 border border-primary/30 rounded-md bg-muted/30 prose dark:prose-invert max-w-none prose-sm md:prose-base text-foreground/90">
+                  <div dangerouslySetInnerHTML={{ __html: marked.parse(summary) as string }} />
                 </div>
               ) : (
-                <p className="text-muted-foreground">Generate a summary to see it here.</p>
+                 !isSummarizing && <p className="text-muted-foreground">Generate a summary to see it here. Ensure there is a transcript first.</p>
               )}
-              <Separator />
-              <p className="text-sm font-semibold">Productivity Integrations:</p>
-              <div className="flex space-x-2">
+              <Separator className="my-6 bg-border/50"/>
+              <p className="text-base font-semibold text-foreground/90">Productivity Integrations:</p>
+              <div className="flex flex-wrap gap-3">
                 <Button variant="outline" size="sm" disabled={!summary}><UploadCloud className="mr-2 h-4 w-4" />Export to Notion</Button>
                 <Button variant="outline" size="sm" disabled={!summary}><UploadCloud className="mr-2 h-4 w-4" />Send to Slack</Button>
                 <Button variant="outline" size="sm" disabled={!summary}><UploadCloud className="mr-2 h-4 w-4" />Create Trello Task</Button>
@@ -303,37 +325,38 @@ function MeetingPageContent() {
           <Card className="glassmorphic">
             <CardHeader>
               <CardTitle>Action Items</CardTitle>
-              <CardDescription>Automatically extracted action items and assignees.</CardDescription>
+              <CardDescription>Automatically extracted action items and assignees from the transcript.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <Button onClick={handleExtractActionItems} disabled={isExtractingActionItems || !transcription || transcription === "No transcript available yet. Start recording or upload a transcript."}>
+            <CardContent className="space-y-6">
+              <Button onClick={handleExtractActionItems} disabled={isExtractingActionItems || !transcription || transcription === "No transcript available yet. Start recording or upload a transcript."} className="bg-primary hover:bg-primary/90 text-primary-foreground">
                 {isExtractingActionItems ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ListChecks className="mr-2 h-4 w-4" />}
                 Extract Action Items
               </Button>
+              {isExtractingActionItems && <p className="text-sm text-muted-foreground flex items-center"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Scanning transcript for action items...</p>}
               {actionItems.length > 0 ? (
-                <ul className="space-y-2">
+                <ul className="space-y-3">
                   {actionItems.map((item, index) => (
-                    <li key={index} className="p-3 border rounded-md bg-muted/30 flex justify-between items-center">
-                      <span>{item.actionItem}</span>
-                      <span className="text-xs px-2 py-1 rounded-full bg-primary/20 text-primary-foreground">{item.assignee}</span>
+                    <li key={index} className="p-4 border border-primary/30 rounded-md bg-muted/30 flex justify-between items-center hover:shadow-md transition-shadow">
+                      <span className="text-foreground/90">{item.actionItem}</span>
+                      <Badge variant="secondary" className="text-xs px-2.5 py-1">{item.assignee}</Badge>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="text-muted-foreground">Extract action items to see them here.</p>
+                !isExtractingActionItems && <p className="text-muted-foreground">Extract action items to see them here. Ensure there is a transcript first.</p>
               )}
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="chatbot" className="mt-6 h-[calc(100vh-12rem)] md:h-[calc(100vh-16rem)]"> {/* Adjust height as needed */}
-           <Card className="glassmorphic h-full flex flex-col">
+        <TabsContent value="chatbot" className="mt-6 h-[calc(100vh-12rem)] md:h-[calc(100vh-15rem)]">
+           <Card className="glassmorphic h-full flex flex-col shadow-xl">
             <CardHeader>
               <CardTitle>Meeting Chatbot Assistant</CardTitle>
-              <CardDescription>Ask questions about the meeting content.</CardDescription>
+              <CardDescription>Ask questions about the meeting content. Powered by AI.</CardDescription>
             </CardHeader>
             <CardContent className="flex-grow p-0 overflow-hidden">
-              <ChatInterface meetingContent={transcription || "No meeting content available."} />
+              <ChatInterface meetingContent={transcription || "No meeting content available to chat about."} />
             </CardContent>
           </Card>
         </TabsContent>
@@ -342,11 +365,9 @@ function MeetingPageContent() {
   );
 }
 
-
 export default function MeetingPageContainer() {
-  // Suspense boundary for useSearchParams
   return (
-    <Suspense fallback={<div className="flex justify-center items-center h-full"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>}>
+    <Suspense fallback={<div className="flex justify-center items-center h-[calc(100vh-10rem)]"><Loader2 className="h-16 w-16 animate-spin text-primary" /></div>}>
       <MeetingPageContent />
     </Suspense>
   );
