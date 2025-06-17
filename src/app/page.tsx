@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { PlusCircle, Zap, BarChart3, Users, FileText } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
-export const dynamic = 'force-dynamic'; // Force dynamic rendering
+// Removed: export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
   const stats = [
@@ -53,7 +53,7 @@ export default async function DashboardPage() {
             ))}
           </div>
         ) : (
-          <Card className="glassmorphic flex flex-col items-center justify-center p-12 text-center min-h-[300px]">
+          <Card className="glassmorphic flex flex-col items-center justify-center p-12 text-center min-h-[300px] border-2 border-dashed border-primary/20">
             <FileText size={64} className="mb-6 text-primary opacity-70" />
             <CardTitle className="font-headline text-2xl font-semibold text-foreground mb-2">No Meetings Yet</CardTitle>
             <p className="mt-2 mb-6 text-muted-foreground max-w-md">
