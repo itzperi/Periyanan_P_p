@@ -3,8 +3,10 @@ import MeetingCard from '@/components/MeetingCard';
 import { mockMeetings } from '@/lib/mockData';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { PlusCircle, Zap, BarChart3, Users } from 'lucide-react';
+import { PlusCircle, Zap, BarChart3, Users, FileText } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+
+export const dynamic = 'force-dynamic'; // Force dynamic rendering
 
 export default async function DashboardPage() {
   const stats = [
@@ -43,7 +45,7 @@ export default async function DashboardPage() {
       </div>
       
       <div>
-        <h2 className="font-headline text-2xl font-semibold tracking-tight mb-4">Your Meetings</h2>
+        <h2 className="font-headline text-2xl font-semibold tracking-tight mb-4 text-foreground">Your Meetings</h2>
         {mockMeetings.length > 0 ? (
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {mockMeetings.map((meeting) => (
@@ -51,10 +53,10 @@ export default async function DashboardPage() {
             ))}
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/30 bg-card/50 p-12 text-center glassmorphic">
-            <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="hsl(var(--primary))" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-6 opacity-70"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><line x1="10" y1="9" x2="8" y2="9"></line></svg>
-            <h2 className="font-headline text-2xl font-semibold text-foreground">No Meetings Yet</h2>
-            <p className="mt-2 mb-6 text-muted-foreground">
+          <Card className="glassmorphic flex flex-col items-center justify-center p-12 text-center min-h-[300px]">
+            <FileText size={64} className="mb-6 text-primary opacity-70" />
+            <CardTitle className="font-headline text-2xl font-semibold text-foreground mb-2">No Meetings Yet</CardTitle>
+            <p className="mt-2 mb-6 text-muted-foreground max-w-md">
               Ready to supercharge your productivity? <br/> Start your first AI-assisted meeting now!
             </p>
             <Button asChild className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-md hover:shadow-primary/30 transition-shadow">
@@ -62,7 +64,7 @@ export default async function DashboardPage() {
                 <PlusCircle className="mr-2 h-4 w-4" /> Start Your First Meeting
               </Link>
             </Button>
-          </div>
+          </Card>
         )}
       </div>
     </div>
